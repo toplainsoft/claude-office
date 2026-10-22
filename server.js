@@ -608,8 +608,10 @@ function addStatusLine() {
   fs.writeFileSync(SETTINGS, JSON.stringify(j, null, 2) + '\n');
   return 'added';
 }
+const AGY_HOOKS = path.join(os.homedir(), '.gemini', 'config', 'hooks.json');
+function agyHookState() { try { return JSON.parse(fs.readFileSync(AGY_HOOKS, 'utf8'))['claude-office'] ? 'on' : 'off'; } catch { return 'off'; } }
 function setupInfo(c) {
-  return { need: needSetup(c), statusLine: statusLineState(), hasClaude: fs.existsSync(ROOT), hasCodex: fs.existsSync(CODEX_DIR) };
+  return { need: needSetup(c), statusLine: statusLineState(), hasClaude: fs.existsSync(ROOT), hasCodex: fs.existsSync(CODEX_DIR), agyHook: agyHookState() };
 }
 function handleSetup(req, res) {
   // 다른 웹사이트가 몰래 보내는 요청 막기: 이 서버 주소에서 온 JSON 만 받음
@@ -632,9 +634,79 @@ function handleSetup(req, res) {
     if (out.ok) sendSnapshot(true);
   });
 }
+
+// ───────── Antigravity (훅 → POST /agy) ─────────
+// Antigravity 는 기록 파일 형식이 공개돼 있지 않아서, 훅이 보내 주는 신호를 받아요. (agy-hook.js 가 보냄)
+// 쓰는 훅: SessionStart · PreInvocation(생각 시작) · PostToolUse(도구 하나 끝) · PostInvocation(답 끝)
+const AGY_ROOM = {
+  view_file: 'library', view_file_outline: 'library', view_code_item: 'library', list_dir: 'library',
+  find_by_name: 'library', grep_search: 'library', codebase_search: 'library', view_content_chunk: 'library',
+  write_to_file: 'dev', replace_file_content: 'dev', multi_replace_file_content: 'dev', generate_image: 'dev',
+  run_command: 'server', command_status: 'server', send_command_input: 'server', read_terminal: 'server',
+  search_web: 'web', read_url_content: 'web', read_browser_page: 'web', browser_subagent: 'web', call_mcp_tool: 'web',
+  task_boundary: 'meeting', notify_user: 'boss',
+};
+const agyRoom = (n) => AGY_ROOM[n] || (/mcp|browser|web|url/i.test(n) ? 'web' : /file|edit|write|replace/i.test(n) ? 'dev' : /command|terminal/i.test(n) ? 'server' : /search|find|view|list|read/i.test(n) ? 'library' : 'desk');
+const agyPath = (p) => { p = String(p || ''); if (p.startsWith('file://')) { try { p = decodeURIComponent(new URL(p).pathname); } catch { } } return p.replace(/^\/([A-Za-z]:\/)/, '$1'); };
+function agyDetail(a) {
+  a = a || {};
+  const f = a.AbsolutePath || a.TargetFile || a.File || a.FilePath || a.DirectoryPath || a.SearchPath;
+  if (a.CommandLine) return snip(a.CommandLine, 48);
+  if (a.Query) return snip(a.Query, 48);
+  if (a.Url) { try { return new URL(a.Url).host; } catch { return snip(a.Url, 40); } }
+  if (a.Pattern) return snip(a.Pattern, 40);
+  if (f) return path.basename(agyPath(f));
+  if (a.ToolName || a.toolName) return snip(a.ToolName || a.toolName, 40);
+  if (a.TaskName) return snip(a.TaskName, 40);
+  return '';
+}
+const agySeen = new Map(); // 같은 신호가 두 곳(공통·CLI 전용 훅 파일)에서 두 번 오면 한 번만 처리
+function agyDup(id, evName, d) {
+  const tc = d.toolCall || {}, now = Date.now();
+  const k = [id, evName, d.stepIdx, d.invocationNum, d.executionNum, tc.name, JSON.stringify(tc.args || {}).slice(0, 300)].join('|');
+  for (const [x, t] of agySeen) if (now - t > 5000) agySeen.delete(x);
+  if (agySeen.has(k)) return true;
+  agySeen.set(k, now); return false;
+}
+function handleAgy(d, evName) {
+  const id = String(d.conversationId || d.conversation_id || '').slice(0, 80); if (!id) return;
+  if (agyDup(id, evName, d)) return;
+  const S = getSession('agy', id); S.agent = 'agy'; S.main = true;
+  const ws = Array.isArray(d.workspacePaths) ? d.workspacePaths[0] : d.workspacePaths;
+  const tc = d.toolCall || {}, args = tc.args || {};
+  if (!S.cwd) S.cwd = agyPath(ws || args.Cwd || '');
+  const now = Date.now();
+  if (!S.started) S.started = now;
+  S.mtime = now; markWork(S, now);
+  switch (evName) {
+    case 'SessionStart': break;
+    case 'PreInvocation': ev(S, true, { k: 'think', text: '생각 중…' }); break;
+    case 'PostToolUse': {
+      const name = String(tc.name || 'tool'), room = agyRoom(name), detail = agyDetail(args);
+      const D = dayRec(S); D.tools[room] = (D.tools[room] || 0) + 1; if (room === 'dev' && detail) D.files.add(detail);
+      ev(S, true, { k: 'tool', tool: name, room, detail });
+      if (d.error) { D.errors++; ev(S, true, { k: 'error', text: snip(typeof d.error === 'string' ? d.error : (d.error.message || JSON.stringify(d.error)), 70) || '도구 실패' }); }
+      break;
+    }
+    case 'PostInvocation': ev(S, true, { k: 'wait', since: now }); break;
+  }
+  sendSnapshot();
+}
+function receiveAgy(req, res, evName) {
+  // 이 컴퓨터 안의 훅만 받음 (브라우저에서 다른 사이트가 보내는 건 Origin 이 붙어서 막힘)
+  const host = req.headers.host || '';
+  if (req.headers.origin || !/^(localhost|127\.0\.0\.1):\d+$/.test(host)) { res.writeHead(403); return res.end(); }
+  let body = '', big = false;
+  req.on('data', (c) => { if (big) return; body += c; if (body.length > 4e6) { big = true; body = ''; } }); // 파일 내용이 통째로 올 수 있어서 넉넉히
+  req.on('end', () => {
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{}');
+    if (big) return;
+    try { handleAgy(JSON.parse(body || '{}'), evName); } catch { }
+  });
+}
 function snapshot() {
   const conf = readConf(), live = liveClaude();
-  const waitOf = (S) => !S.waiting ? 0 : (S.agent !== 'codex' && live && !live.has(S.sid)) ? 0 : S.waiting; // 닫힌 세션은 대기 아님
+  const waitOf = (S) => !S.waiting ? 0 : (S.agent === 'claude' && live && !live.has(S.sid)) ? 0 : S.waiting; // 닫힌 세션은 대기 아님
   const now = Date.now();
   const list = [...sessions.values()].filter(S => S.main !== false);
   // 작업 폴더가 같으면 (또는 한쪽이 다른 쪽 안이면) 같은 층 — Claude 와 Codex 가 한 사무실에서 일함
@@ -692,6 +764,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url === '/setup' && req.method === 'POST') return handleSetup(req, res);
+  if (url === '/agy' && req.method === 'POST') return receiveAgy(req, res, (new URL(req.url, 'http://x').searchParams.get('e') || '').slice(0, 30));
   if (url === '/' || url === '/index.html') {
     fs.readFile(HTML, (err, buf) => {
       if (err) { res.writeHead(500); return res.end('office.html 을 찾을 수 없어요'); }

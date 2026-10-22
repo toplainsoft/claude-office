@@ -52,6 +52,7 @@ Claude Code와 Codex가 남기는 작업 기록을 읽어서, 브라우저 속 �
   - 끝난 작업은 `event_msg` → `item_completed` 의 `item.type`: `UserMessage`, `AgentMessage`, `Reasoning`(summary_text), `CommandExecution`(parsed_cmd, exit_code), `FileChange`, `McpToolCall`, `Extension`(웹 검색)
   - 하위 스레드(`thread_source: guardian_review`)는 **검토 요원**(Guardian). 한 명이 머물다 20초 조용하면 퇴근(`codexKidsTick`).
   - 세션 제목은 `~/.codex/session_index.jsonl`의 `thread_name`.
+- **Antigravity**: 기록 파일 대신 훅. `agy-hook.js <이벤트>` 가 stdin JSON 을 `POST /agy?e=<이벤트>` 로 넘김(항상 `{}` 출력, 1.5초 안에 종료). 서버 `receiveAgy`(Origin 있으면 403, Host 는 localhost만) → `handleAgy` → `getSession('agy', conversationId)`, `S.agent = 'agy'`, cwd 는 `workspacePaths[0]`(file:// 풀어서). 도구 → 방은 `AGY_ROOM`/`agyRoom()`, 자세히는 `agyDetail()`. 설치는 `install-agy.js`(→ `~/.gemini/config/hooks.json` 의 `claude-office` 키). **`PreToolUse`·`Stop` 훅은 쓰지 말 것** — 답(decision)으로 도구 허락/거절·멈춤 방지가 되어 버림.
 - 이벤트 종류(`k`): `tool`(room, tool, detail), `think`, `say`, `error`, `user`, `spawn`, `agentTool`, `agentErr`, `agentDone`, `board`.
 - **층 = 작업 폴더(cwd)**. Claude와 Codex의 cwd가 같거나 한쪽이 다른 쪽 안이면 같은 층으로 합침(홈 폴더 수준은 합치지 않음). 층 번호는 이름순.
 - 가리기 모드(캡처용): `#privBtn` → `body.priv`, 이름·층/세션 이름·일지·말풍선 등을 `filter: blur`. 새 화면 요소에 개인 내용이 들어가면 `body.priv` 선택자 목록에 추가할 것.
@@ -78,8 +79,8 @@ Claude Code와 Codex가 남기는 작업 기록을 읽어서, 브라우저 속 �
 - 좌표: 타일 단위(`WORLD` 22×18), `P(x,y,z)`로 아이소 투영. 가구는 `add()`로 등록하고 `x+y` 깊이순 정렬해서 그림.
 - 방(`ROOMS`): 자료실(읽기·검색) · 개발실(코드 수정, **Claude·Codex 자리**) · 서버실(명령·git) · 정보검색실(웹·MCP) · 회의실(계획·할 일, 화이트보드) · 휴게실(`rest`, 커피 카운터·소파 — 2분 넘게 쉬면 여기로). 각 층에 사용자 캐릭터(`scene.me`)는 없음 — 사용자는 **대표실**에 있음. 질문(서버 room `boss`)은 엘리베이터 타고 대표실로 올라감(`goUp`: `actor.away`면 안 그림, `W.upstairs`) → 다음 이벤트가 오면 `comeDown`으로 엘리베이터에서 다시 나옴. 말을 마치고 답을 기다릴 때(Claude `stop_reason: end_turn`, Codex `task_complete`/`turn_aborted`)도 서버가 `wait` 이벤트를 보내고 세션에 `waiting`(시각)을 실음 → 대표실로 올라감, 결재함 '💬 답변 대기'(3시간까지). 열린 Claude 세션은 `~/.claude/sessions/<pid>.json`(sessionId, pid)으로 확인(`liveClaude`) — 닫힌 세션은 대기 0. 같은 폴더의 `.key` 파일은 절대 열지 않음. 가운데 가로 복도(`LANE`), 왼쪽 벽에 엘리베이터.
 - 자리(`HOME`): Claude = 개발실 앞쪽 주황 의자 책상(전화·명패·머그), Codex = 개발실 왼쪽 청록 명패 책상. 둘 다 책상 **뒤**에 서 있어서 개발실 안에서는 통로(`DEV_AISLE`)로 돌아 들어감(`route()`).
-- 장면(`scene`): 한 층 = 한 사무실. `scene.workers`에 지금 보는 세션(primary)과, 같은 층에서 최근 일한 **다른 쪽**(Claude↔Codex) 세션이 같이 들어감(`syncCompanion`). 각 worker는 자기 서브에이전트(`agents`)를 가짐.
-- 캐릭터(`PEOPLE`): claude(주황, ✳, 삐침머리), codex(남색, 헤드셋, ◇), Explore(초록 모자), Plan(보라 안경), general-purpose(파랑), Guardian(노란 옷 모자 = 검토 요원), Helper, me(사용자 = 대표: 여자, 긴 갈색 머리·노란 머리핀·핑크 재킷·남색 치마·속눈썹·핑크 입술 — `long`/`lady`/`pin`/`skirt`).
+- 장면(`scene`): 한 층 = 한 사무실. `scene.workers`에 지금 보는 세션(primary)과, 같은 층에서 최근 일한 **다른 종류**(Claude·Codex·Antigravity 중 나머지, 종류마다 1명) 세션이 같이 들어감(`syncCompanion`). 종류는 `kindOf(s)`, 이름표 색은 `whoCls(s)`(cx/ag). 각 worker는 자기 서브에이전트(`agents`)를 가짐.
+- 캐릭터(`PEOPLE`): claude(주황, ✳, 삐침머리), codex(남색, 헤드셋, ◇), agy(보라, ▲, `float` 둥둥 + `halo` 고리, 개발실 뒷줄 책상), Explore(초록 모자), Plan(보라 안경), general-purpose(파랑), Guardian(노란 옷 모자 = 검토 요원), Helper, me(사용자 = 대표: 여자, 긴 갈색 머리·노란 머리핀·핑크 재킷·남색 치마·속눈썹·핑크 입술 — `long`/`lady`/`pin`/`skirt`).
 - 층 정리(`applySnap`, `#tidy` 창): 서버가 나눈 층을 브라우저에서 다시 묶음 — 이름 바꾸기·합치기(`merge`)·세션 옮기기(`moves`)·숨기기. `localStorage`의 `office.layout`, `office.hiddenFloors`에 저장. 층 번호는 정리 후 다시 매김. 이 도구 폴더(서버가 `snap.self`로 알려줌)는 지하 1층(`n = -1`, `fno()`가 `B1`로 표시) **관리실**로 `#base`에 그림. 1층은 **로비**(프로젝트 층은 2F부터): 누르면 가운데에 **로비 안내판**(`#lobbyV`, `renderLobby`) — 층별 현황, 줄 누르면 그 층으로. 층별 직원 이름은 `layout.workers[proj]`, 화면에 쓸 땐 `staff(kind)`. 맨 위 **RF 옥상정원**, 그 아래 **대표실**(`data-ceo`: 누르면 결재함 — 질문·에러 올라온 층 목록, `floorAlert`/`alertInfo`).
 - 말풍선 종류: 일반 / think(보라, 고민 중) / error(빨강, 식은땀) / report(초록) / user(노랑).
 

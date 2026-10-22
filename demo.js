@@ -80,8 +80,31 @@ const cxScript = [
   () => item({ type: 'AgentMessage', content: [{ type: 'text', text: 'CSV 내보내기 버튼을 설정 화면에 추가했어요. 엑셀에서 한글이 안 깨지게 BOM도 넣었어요.' }] }),
 ];
 
+// ── Antigravity 도 같은 프로젝트에서 일하는 척 (훅이 서버로 보내는 신호를 흉내) ──
+const AGID = 'demo-antigravity-1', agyWs = ['file:///Users/me/gagyebu'];
+const agy = (e, extra) => {
+  const body = JSON.stringify(Object.assign({ conversationId: AGID, workspacePaths: agyWs, modelName: 'gemini-3-pro' }, extra || {}));
+  const r = require('http').request({ host: '127.0.0.1', port: +process.env.PORT || 4777, method: 'POST', path: '/agy?e=' + e, headers: { 'Content-Type': 'application/json' } }, (res) => res.resume());
+  r.on('error', () => { }); r.end(body);
+};
+const T = (name, args, error) => agy('PostToolUse', { toolCall: { name, args }, error });
+let agi = 0;
+const agyScript = [
+  () => agy('SessionStart'),
+  () => agy('PreInvocation', { invocationNum: 1 }),
+  () => T('list_dir', { DirectoryPath: '/Users/me/gagyebu/src' }),
+  () => T('view_file', { AbsolutePath: '/Users/me/gagyebu/src/Budget.tsx' }),
+  () => T('search_web', { Query: '월 예산 진행 바 접근성' }),
+  () => T('replace_file_content', { TargetFile: '/Users/me/gagyebu/src/Budget.tsx' }),
+  () => T('run_command', { CommandLine: 'npm run lint', Cwd: '/Users/me/gagyebu' }, 'exit code 1: 2 problems'),
+  () => T('replace_file_content', { TargetFile: '/Users/me/gagyebu/src/Budget.tsx' }),
+  () => T('run_command', { CommandLine: 'npm run lint', Cwd: '/Users/me/gagyebu' }),
+  () => agy('PostInvocation', { invocationNum: 1 }),
+];
+
 let i = 0;
 const timer = setInterval(() => {
+  if (i % 2 === 1) { if (agi < agyScript.length) agyScript[agi++](); else if (agi++ > agyScript.length + 10) agi = 1; }
   if (i < script.length) script[i++]();
   else if (i++ > script.length + 12) i = 0; // 잠깐 쉬었다가 반복
   if (i % 2 === 0) { if (cxi < cxScript.length) cxScript[cxi++](); else if (cxi++ > cxScript.length + 8) cxi = 0; }

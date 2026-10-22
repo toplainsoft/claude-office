@@ -262,7 +262,10 @@ body.priv :is(.fl:not(.rf):not(.lobby) b,#tname,#mproj,#msess,.al b,.al p,.bub,.
 .cr{flex:none;width:236px;background:rgba(255,255,255,.95);border-radius:14px;padding:9px 12px 9px 9px;display:flex;gap:10px;cursor:pointer;
   box-shadow:0 6px 18px rgba(60,60,110,.10);border:2px solid transparent}
 .cr:hover{border-color:#dcdff0}
-.cr.claude{border-color:#f6d7c4}.cr.codex{border-color:#bfe8dd}
+.cr.claude{border-color:#f6d7c4}.cr.codex{border-color:#bfe8dd}.cr.agy{border-color:#d9cffd}
+.who.ag{color:#5a3fd0!important;background:#efeaff!important}
+.fl .win button.ag{border-radius:6px 6px 2px 2px;box-shadow:inset 0 -3px 0 #7b5cf0}
+.fl .win button.lit.ag{box-shadow:inset 0 -3px 0 #7b5cf0,0 0 6px rgba(255,190,60,.8)}
 .cr img{width:44px;height:44px;border-radius:12px;background:#f1f2f9;flex:none}
 .cr .m{min-width:0;flex:1}
 .cr .r1{display:flex;align-items:center;gap:6px}
@@ -365,7 +368,7 @@ const TW = 56, TH = 28, WALL = 84, LOW = 22, ISLE = 1.6, SOIL = 52;
 const WORLD = { w: 22, h: 18 };
 const ROOMS = {
   library: { x: 0, y: 0, w: 8, h: 7, name: '자료실', what: '파일 읽기 · 검색', tone: '#c58449', spot: [4.6, 5.6] },
-  dev:     { x: 8, y: 0, w: 7, h: 7, name: '개발실', what: 'Claude · Codex 자리', tone: '#4d6fd6', spot: [13.35, 3.75], agent: [9.5, 6.0] },
+  dev:     { x: 8, y: 0, w: 7, h: 7, name: '개발실', what: 'Claude · Codex · Antigravity 자리', tone: '#4d6fd6', spot: [13.35, 3.75], agent: [9.5, 6.0] },
   server:  { x: 15, y: 0, w: 7, h: 7, name: '서버실', what: '명령 실행 · git', tone: '#535c74', spot: [18.5, 5.8] },
   web:     { x: 0, y: 11, w: 8, h: 7, name: '정보검색실', what: '웹 · MCP 도구', tone: '#2b9672', spot: [3.4, 15.6] },
   meeting: { x: 8, y: 11, w: 7, h: 7, name: '회의실', what: '계획 · 할 일', tone: '#8360c9', spot: [13.9, 14.4] },
@@ -374,8 +377,10 @@ const ROOMS = {
 const DOORS = { library: 4, dev: 11.5, server: 18.5, web: 4, meeting: 11.5, rest: 18.5 };
 const LANE = 9.6, DEV_AISLE = 11.6, DEV_BACK = 4.4;
 const SPOTS = { elevIn: [.45, 9.1], elevOut: [2.2, 9.5] };
-const HOME = { claude: { spot: [13.35, 3.75], report: [12.05, 3.75] }, codex: { spot: [9.8, 2.95], report: [11.1, 2.95] } };
-const BRAND = { claude: 'Claude', codex: 'Codex' };
+const HOME = { claude: { spot: [13.35, 3.75], report: [12.05, 3.75] }, codex: { spot: [9.8, 2.95], report: [11.1, 2.95] }, agy: { spot: [12.0, 2.7], report: [11.2, 3.6] } };
+const BRAND = { claude: 'Claude', codex: 'Codex', agy: 'Antigravity' };
+const kindOf = (s) => s && s.agent === 'codex' ? 'codex' : s && s.agent === 'agy' ? 'agy' : 'claude';
+const whoCls = (s) => ({ codex: 'cx', agy: 'ag' })[kindOf(s)] || '';
 // 층마다 붙인 직원 이름 (층 정리 창에서 정함). 없으면 Claude / Codex
 const curProj = () => { const f = SNAP && SNAP.floors.find(x => x.n === curFloorN); return f ? f.proj : ''; };
 const staff = (kind, proj = curProj()) => ((layout.workers[proj] || {})[kind]) || BRAND[kind];
@@ -387,6 +392,7 @@ const PEOPLE = {
   Plan: { body: '#8a5fd0', hair: '#2f2a3a', glasses: true, label: 'Plan', dot: '#8a5fd0' },
   'general-purpose': { body: '#4a7fe0', hair: '#7a5230', label: '일반', dot: '#4a7fe0' },
   codex: { body: '#2e3646', hair: '#2a211c', label: 'Codex', dot: '#14a085', headset: '#14a085', mark: '◇' },
+  agy: { body: '#7b5cf0', hair: '#2b2350', label: 'Antigravity', dot: '#7b5cf0', mark: '▲', float: true, halo: '#b9a6ff' },
   Guardian: { body: '#d9a930', hair: '#4a3426', cap: '#2e3646', label: '검토 요원', dot: '#d9a930' },
   Helper: { body: '#5fc4ae', hair: '#5a3a26', label: 'Codex 도우미', dot: '#5fc4ae' },
   me: { body: '#e86a8a', hair: '#3b2418', dot: '#d38f22', long: true, lady: true, pin: '#ffd34d', skirt: '#2f2a4a' }, // 대표: 긴 머리 · 핑크 재킷 · 머리핀
@@ -720,8 +726,9 @@ function drawPerson(a, t) {
   const bob = walk ? Math.abs(Math.sin(ph)) * 2.2 : a.mood === 'work' ? Math.abs(Math.sin(t * 7 + a.seed)) * 1 : 0;
   const shake = a.shakeUntil > performance.now() ? Math.sin(t * 60) * 1.2 : 0;
   ctx.save(); ctx.translate(sx + shake, sy); ctx.scale(1.3, 1.3);
+  if (L.float) { ellipse(0, 0, 9 + Math.sin(t * 2.2 + a.seed), 3.6, 'rgba(123,92,240,.28)'); ctx.translate(0, -7 - Math.sin(t * 2.2 + a.seed) * 2.2); } // 반중력: 둥둥
   if (!a.avatar && a.x < 1.2) ctx.globalAlpha = Math.max(0, Math.min(1, elevOpen * 1.4, (a.x - .2) * 1.6 + elevOpen));
-  ellipse(0, 0, 10, 4.2, 'rgba(30,35,60,.16)');
+  if (!L.float) ellipse(0, 0, 10, 4.2, 'rgba(30,35,60,.16)'); // 떠 있는 직원은 바닥 그림자 하나만 (위에서 따로 그림)
   const sw = walk ? Math.sin(ph) * 2.4 : 0;
   rrect(-6, -12 - Math.max(0, sw), 5, 11, 2.5, '#3d4257'); rrect(1, -12 - Math.max(0, -sw), 5, 11, 2.5, '#3d4257');
   const by = -28 - bob;
@@ -740,6 +747,7 @@ function drawPerson(a, t) {
   if (L.pin) { rrect(5, hy - 11, 7, 3, 1.5, L.pin, OUT); circle(11, hy - 9.5, 2, '#ff8fa8', OUT); }
   if (L.ahoge) { ctx.strokeStyle = L.hair; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, hy - 13); ctx.quadraticCurveTo(5, hy - 20, 1, hy - 23); ctx.stroke(); }
   if (L.headset) { ctx.strokeStyle = '#3a4252'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, hy - 1, 14, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke(); rrect(-16, hy - 3, 5, 9, 2.5, L.headset, OUT); rrect(11, hy - 3, 5, 9, 2.5, L.headset, OUT); ctx.strokeStyle = '#3a4252'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-13.5, hy + 5); ctx.quadraticCurveTo(-11, hy + 10, -5, hy + 9.5); ctx.stroke(); circle(-5, hy + 9.5, 1.6, '#3a4252'); }
+  if (L.halo) { ctx.strokeStyle = L.halo; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, hy - 19 - Math.sin(t * 3 + a.seed) * 1.2, 9, 3, 0, 0, 7); ctx.stroke(); }
   if (L.cap) { ctx.beginPath(); ctx.arc(0, hy - 2.5, 13.2, Math.PI, 0); ctx.closePath(); ctx.fillStyle = L.cap; ctx.fill(); rrect(-14, hy - 5, 9, 3.5, 1.6, shade(L.cap, -.15)); circle(0, hy - 10, 2.2, '#ffd25a'); }
   if (L.hat) { ctx.beginPath(); ctx.arc(0, hy - 3, 13.5, Math.PI, 0); ctx.closePath(); ctx.fillStyle = L.hat; ctx.fill(); rrect(-2, hy - 5, 18, 4, 2, shade(L.hat, -.12)); }
   const bt = t * 1.3 + a.seed, blink = Math.floor(bt) % 5 === 0 && bt % 1 < .12;
@@ -836,11 +844,11 @@ function spotFor(room, idx, kind = 'claude') {
   const H = HOME[kind] || HOME.claude;
   if (room === 'report') return pt(H.report[0], H.report[1], 'dev');
   if (room === 'desk' || room === 'phone' || (room === 'dev' && idx == null)) return pt(H.spot[0], H.spot[1], 'dev');
-  if (room === 'boss') return pt(SPOTS.elevOut[0] + (kind === 'codex' ? .5 : 0), SPOTS.elevOut[1], 'lobby'); // 질문 → 엘리베이터 타고 대표실로
+  if (room === 'boss') return pt(SPOTS.elevOut[0] + (kind === 'codex' ? .5 : kind === 'agy' ? 1 : 0), SPOTS.elevOut[1], 'lobby'); // 질문 → 엘리베이터 타고 대표실로
   if (room === 'lobby') return pt(13.6 + ((idx || 0) % 4) * .8, 9.25, 'lobby');
   const r = ROOMS[room]; if (!r) return spotFor('desk', null, kind);
-  const kOff = kind === 'codex' ? -1.3 : 0;
-  if (idx == null) return pt(Math.max(r.x + .6, r.spot[0] + kOff), r.spot[1], room);
+  const kOff = kind === 'codex' ? -1.3 : kind === 'agy' ? 1.1 : 0;
+  if (idx == null) return pt(Math.min(r.x + r.w - .6, Math.max(r.x + .6, r.spot[0] + kOff)), r.spot[1] + (kind === 'agy' ? -.6 : 0), room);
   const base = r.agent || r.spot, off = AG_OFF[idx % AG_OFF.length] + (room === 'dev' ? 0 : .9);
   const x = Math.max(r.x + .6, Math.min(r.x + r.w - .6, base[0] + off));
   return pt(room === 'dev' ? Math.min(x, 10.6) : x, base[1], room);
@@ -874,7 +882,7 @@ function removeWorker(W) { W.gone = true; W.actor.remove(); W.agents.forEach(a =
 function clearScene() { if (!scene) return; scene.workers.forEach(removeWorker); if (scene.me) dropVisitor(); }
 
 function makeWorker(sess) {
-  const kind = sess.agent === 'codex' ? 'codex' : 'claude';
+  const kind = kindOf(sess);
   const st = sess.state || { room: 'desk', agents: [], board: [], idle: true };
   const W = { key: sess.key, kind, agents: new Map(), lastEv: st.idle ? 0 : Date.now(), board: st.board || [],
     tools: sess.tools || 0, started: sess.started || sess.mtime, lastTool: fmtTool(st.tool, st.detail), label: sess.label };
@@ -898,7 +906,7 @@ function buildScene(sess) {
   scene.me = null; // 사용자는 각 층이 아니라 대표실에 있음
   scene.workers.set(sess.key, makeWorker(sess));
   syncCompanion();
-  $('#alog').innerHTML = '<div class="none">아직 기록이 없어요. 이 층에서 Claude나 Codex가 움직이면 여기에 쌓여요.</div>';
+  $('#alog').innerHTML = '<div class="none">아직 기록이 없어요. 이 층에서 Claude·Codex·Antigravity가 움직이면 여기에 쌓여요.</div>';
   renderCrew();
 }
 // 같은 층에서 다른 쪽(Claude↔Codex)이 최근에 일하고 있으면 같이 출근시킴
@@ -906,9 +914,11 @@ function syncCompanion() {
   if (!scene || !SNAP) return;
   const P = primary(); if (!P) return;
   const f = SNAP.floors.find(x => x.sessions.some(s => s.key === scene.primary)); if (!f) return;
-  const mate = f.sessions.filter(s => s.key !== scene.primary && s.state && (s.agent === 'codex' ? 'codex' : 'claude') !== P.kind).sort((a, b) => b.mtime - a.mtime)[0];
-  for (const [k, W] of scene.workers) if (k !== scene.primary && (!mate || k !== mate.key)) { removeWorker(W); scene.workers.delete(k); }
-  if (mate && !scene.workers.has(mate.key)) scene.workers.set(mate.key, makeWorker(mate));
+  const mates = ['claude', 'codex', 'agy'].filter(k => k !== P.kind)
+    .map(k => f.sessions.filter(s => s.key !== scene.primary && s.state && kindOf(s) === k).sort((a, b) => b.mtime - a.mtime)[0]).filter(Boolean);
+  const keep = new Set(mates.map(m => m.key));
+  for (const [k, W] of scene.workers) if (k !== scene.primary && !keep.has(k)) { removeWorker(W); scene.workers.delete(k); }
+  for (const m of mates) if (!scene.workers.has(m.key)) scene.workers.set(m.key, makeWorker(m));
   renderCrew();
 }
 
@@ -995,7 +1005,7 @@ function onEv(e) {
   if (kind && SNAP) {
     const s = allSessions().find(x => x.key === e.session);
     if (s) {
-      const who = staff(s.agent === 'codex' ? 'codex' : 'claude', s.floor.proj);
+      const who = staff(kindOf(s), s.floor.proj);
       floorAlert.set(s.floor.proj, kind); alertInfo.set(s.floor.proj, { who, text: kind === 'ask' ? e.detail : e.text, at: Date.now() }); renderDir();
       notify(kind === 'ask' ? `🙋 ${fno(s.floor.n)} ${who} 질문 있어요` : `⚠ ${fno(s.floor.n)} ${who} 에러`);
     }
@@ -1165,7 +1175,7 @@ function renderDir() {
   const now = Date.now();
   const card = (f) => {
     const cur = f.n === curFloorN;
-    const win = f.sessions.slice(0, 10).map(s => `<button class="${s.active ? 'lit' : s.state ? 'warm' : ''} ${s.key === curKey ? 'cur' : ''} ${s.agent === 'codex' ? 'cx' : ''}" data-k="${esc(s.key)}" title="${s.agent === 'codex' ? 'Codex' : 'Claude'} · ${esc(s.label)} · ${agoTxt(s.mtime)}" aria-label="${esc(s.label)}"></button>`).join('');
+    const win = f.sessions.slice(0, 10).map(s => `<button class="${s.active ? 'lit' : s.state ? 'warm' : ''} ${s.key === curKey ? 'cur' : ''} ${whoCls(s)}" data-k="${esc(s.key)}" title="${BRAND[kindOf(s)]} · ${esc(s.label)} · ${agoTxt(s.mtime)}" aria-label="${esc(s.label)}"></button>`).join('');
     const al = floorAlert.get(f.proj);
     return `<div class="fl ${cur ? 'cur' : ''} ${now - f.mtime > 864e5 ? 'dim' : ''} ${al || ''}" data-n="${f.n}" tabindex="0"><button class="x" title="층 정리 (이름 · 합치기 · 세션 옮기기 · 숨기기)" aria-label="${esc(f.name)} 층 정리">⋯</button><span class="no jua">${fno(f.n)}</span><b>${esc(f.name)}${al ? `<span class="tag">${al === 'ask' ? '🙋 질문' : '⚠ 에러'}</span>` : ''}</b>
       <span class="sub">세션 ${f.total}개 · ${f.active ? '일하는 중' : agoTxt(f.mtime)}</span><div class="win">${win}</div><span class="car"></span></div>`;
@@ -1202,7 +1212,7 @@ function renderDir() {
 function renderPop() {
   const f = SNAP.floors.find(x => x.n === curFloorN); if (!f) return;
   $('#pop').innerHTML = `<label><input type="checkbox" id="fol" ${follow ? 'checked' : ''}>지금 일하는 세션 자동으로 따라가기</label>` +
-    f.sessions.map(s => `<div class="ss ${s.key === curKey ? 'cur' : ''}" role="menuitem" tabindex="0" data-k="${esc(s.key)}"><span class="who ${s.agent === 'codex' ? 'cx' : ''}">${s.agent === 'codex' ? 'Codex' : 'Claude'}</span><span class="t">${esc(s.label)}</span>${s.active ? '<span class="now">● 지금</span>' : `<span class="w">${agoTxt(s.mtime)}</span>`}</div>`).join('');
+    f.sessions.map(s => `<div class="ss ${s.key === curKey ? 'cur' : ''}" role="menuitem" tabindex="0" data-k="${esc(s.key)}"><span class="who ${whoCls(s)}">${BRAND[kindOf(s)]}</span><span class="t">${esc(s.label)}</span>${s.active ? '<span class="now">● 지금</span>' : `<span class="w">${agoTxt(s.mtime)}</span>`}</div>`).join('');
   $('#fol').onchange = (e) => setFollow(e.target.checked);
 }
 function closePop() { $('#pop').classList.remove('open'); $('#sessBtn').setAttribute('aria-expanded', 'false'); }
@@ -1234,7 +1244,7 @@ function renderLobby() {
   const row = (f) => {
     const on = f.sessions.filter(s => s.active), s = on[0] || f.sessions[0], st = s && s.state;
     const doing = st ? (st.tool ? `${(ROOMS[st.room] || {}).name || ''} · ${st.tool}${st.detail ? ' ' + st.detail : ''}` : (st.idle ? '자리에서 쉬는 중' : '일하는 중')) : esc(s ? s.label : '');
-    const who = (on.length ? on : [s]).filter(Boolean).slice(0, 3).map(x => `<span class="who ${x.agent === 'codex' ? 'cx' : ''}">${esc(staff(x.agent === 'codex' ? 'codex' : 'claude', f.proj))}</span>`).join('');
+    const who = (on.length ? on : [s]).filter(Boolean).slice(0, 3).map(x => `<span class="who ${whoCls(x)}">${esc(staff(kindOf(x), f.proj))}</span>`).join('');
     return `<div class="rw ${f.active ? '' : 'idle'}" data-n="${f.n}" tabindex="0"><span class="no jua">${fno(f.n)}</span><b>${esc(f.name)}</b>
       <span class="st ${f.active ? 'on' : ''}">${f.active ? '● 일하는 중' : agoTxt(f.mtime)}</span><span class="what">${who}<span>${st ? esc(doing) : doing}</span></span></div>`;
   };
@@ -1252,7 +1262,7 @@ function dayData() {
     const tools = {}, files = new Set(), prompts = []; let errors = 0;
     for (const s of ss) if (s.day) { for (const [k, n] of Object.entries(s.day.tools)) tools[k] = (tools[k] || 0) + n; s.day.files.forEach(x => files.add(x)); prompts.push(...s.day.prompts); errors += s.day.errors; }
     const b = [...new Set(ss.flatMap(s => s.work || []))].sort((x, y) => x - y);
-    return { f, tools, files: [...files], prompts, errors, mins: b.length * 5, from: b[0], to: b[b.length - 1], who: [...new Set(ss.map(s => staff(s.agent === 'codex' ? 'codex' : 'claude', f.proj)))] };
+    return { f, tools, files: [...files], prompts, errors, mins: b.length * 5, from: b[0], to: b[b.length - 1], who: [...new Set(ss.map(s => staff(kindOf(s), f.proj)))] };
   }).filter(Boolean).sort((a, b) => b.mins - a.mins);
 }
 const todayTxt = () => new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
@@ -1284,7 +1294,7 @@ function monthRank() {
   const m = new Map();
   for (const f of SNAP ? SNAP.floors : []) for (const s of f.sessions) {
     if (!s.month) continue;
-    const kind = s.agent === 'codex' ? 'codex' : 'claude', k = f.proj + '|' + kind;
+    const kind = kindOf(s), k = f.proj + '|' + kind;
     const r = m.get(k) || m.set(k, { f, kind, min: 0 }).get(k); r.min += s.month;
   }
   return [...m.values()].sort((a, b) => b.min - a.min);
@@ -1308,8 +1318,8 @@ function workBook(floors) {
   const rows = floors.map(f => {
     const all = new Set(f.sessions.flatMap(s => s.work || [])); if (!all.size) { off++; return ''; }
     const b = [...all].sort((x, y) => x - y), mins = b.length * 5, last = b[b.length - 1]; total += mins;
-    const kinds = [...new Set(f.sessions.filter(s => (s.work || []).length).map(s => s.agent === 'codex' ? 'codex' : 'claude'))];
-    const who = kinds.map(k => `<span class="who ${k === 'codex' ? 'cx' : ''}">${esc(staff(k, f.proj))}</span>`).join('');
+    const kinds = [...new Set(f.sessions.filter(s => (s.work || []).length).map(s => kindOf(s)))];
+    const who = kinds.map(k => `<span class="who ${k === 'codex' ? 'cx' : k === 'agy' ? 'ag' : ''}">${esc(staff(k, f.proj))}</span>`).join('');
     const working = f.active || nowB - last <= 1;
     // 하루 막대: 0시~24시 중 일한 칸을 칠함
     const bar = `<span class="day">${b.map(x => `<i style="left:${x / 288 * 100}%"></i>`).join('')}</span>`;
@@ -1340,7 +1350,7 @@ function waitingList() {
   return SNAP ? SNAP.floors.flatMap(f => f.sessions.filter(s => s.waiting && now - s.waiting < WAIT_MS && !floorAlert.has(f.proj)).map(s => ({ f, s }))) : [];
 }
 function renderBoss() {
-  const wrows = waitingList().map(({ f, s }) => `<div class="rw" data-n="${f.n}" data-k="${esc(s.key)}" tabindex="0"><span class="no jua">${fno(f.n)}</span><b>💬 ${esc(staff(s.agent === 'codex' ? 'codex' : 'claude', f.proj))} · ${esc(f.name)}</b>
+  const wrows = waitingList().map(({ f, s }) => `<div class="rw" data-n="${f.n}" data-k="${esc(s.key)}" tabindex="0"><span class="no jua">${fno(f.n)}</span><b>💬 ${esc(staff(kindOf(s), f.proj))} · ${esc(f.name)}</b>
       <span class="st">${agoTxt(s.waiting)}부터</span><span class="what"><span>${esc(s.label)}</span></span></div>`).join('');
   const rows = SNAP.floors.filter(f => floorAlert.has(f.proj)).map(f => {
     const k = floorAlert.get(f.proj), i = alertInfo.get(f.proj) || {};
@@ -1364,13 +1374,13 @@ function renderTidy() {
   $('#tidy').innerHTML = `<header><span class="no jua">${F.n && !hidden.has(F.proj) ? fno(F.n) : '숨김'}</span><h3 class="jua" id="tidyH">층 정리</h3><button data-a="close" aria-label="닫기">×</button></header>
   <div class="bd">
     <div class="row"><span class="lab">층 이름</span><input id="tName" value="${esc(layout.names[F.proj] || '')}" placeholder="${esc(F.orig || '새 층')}" maxlength="40"><button class="btn" data-a="name">바꾸기</button></div>
-    <div class="row"><span class="lab">직원 이름</span><input id="tClaude" value="${esc((layout.workers[F.proj] || {}).claude || '')}" placeholder="Claude" maxlength="12" aria-label="이 층 Claude 이름"><input id="tCodex" value="${esc((layout.workers[F.proj] || {}).codex || '')}" placeholder="Codex" maxlength="12" aria-label="이 층 Codex 이름"><button class="btn" data-a="staff">정하기</button></div>
+    <div class="row"><span class="lab">직원 이름</span><input id="tClaude" value="${esc((layout.workers[F.proj] || {}).claude || '')}" placeholder="Claude" maxlength="12" aria-label="이 층 Claude 이름"><input id="tCodex" value="${esc((layout.workers[F.proj] || {}).codex || '')}" placeholder="Codex" maxlength="12" aria-label="이 층 Codex 이름"><input id="tAgy" value="${esc((layout.workers[F.proj] || {}).agy || '')}" placeholder="Antigravity" maxlength="12" aria-label="이 층 Antigravity 이름"><button class="btn" data-a="staff">정하기</button></div>
     <div class="row"><span class="lab">꾸미기</span><select id="tTheme" style="flex:1">${Object.entries(THEMES).map(([k, v]) => `<option value="${k}" ${(layout.deco[F.proj] || {}).theme === k ? 'selected' : ''}>${v.name}</option>`).join('')}</select>
       ${PROPS.map(([k, lab]) => `<label class="chip" style="cursor:pointer;padding-right:9px"><input type="checkbox" data-prop="${k}" ${(layout.deco[F.proj] || {})[k] ? 'checked' : ''}>${lab}</label>`).join('')}</div>
     <div class="row"><span class="lab">폴더</span><span class="path">${esc(cwd ? cwd.replace(/^\/(Users|home)\/[^/]+/, '~') : F.proj.startsWith('new:') ? '직접 만든 층' : F.proj)}</span></div>
     ${F.parts.length ? `<h4>이 층에 합친 층</h4><div>${F.parts.map(p => `<span class="chip">${esc(layout.names[p] || (RAW.floors.find(f => f.proj === p) || {}).name || p)}<button data-a="split" data-p="${esc(p)}">떼어내기</button></span>`).join('')}</div>` : ''}
     <h4>세션 ${F.sessions.length}개 — 다른 층으로 옮기려면 오른쪽에서 고르세요</h4>
-    ${F.sessions.map(s => `<div class="sl"><span class="who ${s.agent === 'codex' ? 'cx' : ''}">${s.agent === 'codex' ? 'Codex' : 'Claude'}</span><span class="t" title="${esc(s.label)}">${esc(s.label)}</span><span class="w">${agoTxt(s.mtime)}</span>
+    ${F.sessions.map(s => `<div class="sl"><span class="who ${whoCls(s)}">${BRAND[kindOf(s)]}</span><span class="t" title="${esc(s.label)}">${esc(s.label)}</span><span class="w">${agoTxt(s.mtime)}</span>
       <select data-k="${esc(s.key)}" aria-label="옮길 층"><option value="" selected>이 층에 둠</option>${others.map(opt).join('')}<option value="+new">＋ 새 층 만들기</option></select></div>`).join('')}
     ${F.total > F.sessions.length ? `<p class="note">오래된 세션 ${F.total - F.sessions.length}개는 목록에 없어요.</p>` : ''}
     ${others.length ? `<h4>이 층을 통째로 다른 층에 합치기</h4><div class="row"><select id="tMerge" style="flex:1"><option value="">층 고르기</option>${others.map(opt).join('')}</select><button class="btn" data-a="merge">합치기</button></div>` : ''}
@@ -1385,8 +1395,8 @@ $('#tidyBg').addEventListener('click', (e) => {
   if (a === 'close') return closeTidy();
   if (a === 'name') { const v = $('#tName').value.trim(); if (v) layout.names[F.proj] = v; else delete layout.names[F.proj]; relayout(); }
   if (a === 'staff') {
-    const c = $('#tClaude').value.trim(), x = $('#tCodex').value.trim();
-    if (c || x) layout.workers[F.proj] = Object.assign({}, c && { claude: c }, x && { codex: x }); else delete layout.workers[F.proj];
+    const c = $('#tClaude').value.trim(), x = $('#tCodex').value.trim(), g = $('#tAgy').value.trim();
+    if (c || x || g) layout.workers[F.proj] = Object.assign({}, c && { claude: c }, x && { codex: x }, g && { agy: g }); else delete layout.workers[F.proj];
     relayout(); if (scene) { scene.workers.forEach(nameActor); renderCrew(); }
   }
   if (a === 'split') { delete layout.merge[b.dataset.p]; relayout(); }
@@ -1411,7 +1421,7 @@ $('#tidyBg').addEventListener('change', (e) => {
 $('#tidyBg').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeTidy();
   if (e.key === 'Enter' && e.target.id === 'tName') e.target.nextElementSibling.click();
-  if (e.key === 'Enter' && /^t(Claude|Codex)$/.test(e.target.id)) $('#tidy [data-a=staff]').click();
+  if (e.key === 'Enter' && /^t(Claude|Codex|Agy)$/.test(e.target.id)) $('#tidy [data-a=staff]').click();
 });
 // ───────── 처음 설정 (건물 이름 · 내 이름 · 사용량 표시) ─────────
 // 서버가 snap.setup.need 로 알려주면 한 번 띄움. 오른쪽 위 ⚙️ 로 언제든 다시 열 수 있음
@@ -1766,20 +1776,20 @@ function syncCeo() {
   list.forEach((x, i) => {
     let a = ceoQ.get(x.s.key); const [sx, sy] = ceoSlot(i);
     if (!a) {
-      a = new Actor(x.s.agent === 'codex' ? 'codex' : 'claude', CEO_ELEV.in[0], CEO_ELEV.in[1]); a.scene = 'ceo';
+      a = new Actor(kindOf(x.s), CEO_ELEV.in[0], CEO_ELEV.in[1]); a.scene = 'ceo';
       ceoQ.set(x.s.key, a); ceoActors.push(a);
       elevTarget = 1; setTimeout(() => { elevTarget = 0; }, 1200);
       a.walk([CEO_ELEV.out, [sx, CEO_ELEV.out[1]], [sx, sy]]);
       a.say(x.kind === 'err' ? 'error' : '', x.kind === 'ask' ? '질문 있어요' : x.kind === 'err' ? '에러 보고' : '결재 부탁드려요', x.text || '', 4000);
     } else if (!a.walking && !a.leaving && (Math.abs(a.x - sx) > .05 || Math.abs(a.y - sy) > .05)) a.walk([[sx, sy]]);
     a.badge = x.kind === 'wait' ? '' : 'ask'; a.mood = x.kind === 'err' ? 'sweat' : '';
-    a.setName(staff(x.s.agent === 'codex' ? 'codex' : 'claude', x.f.proj), fno(x.f.n));
+    a.setName(staff(kindOf(x.s), x.f.proj), fno(x.f.n));
   });
 }
 function renderCeoCrew() {
   const list = ceoWaiting();
-  $('#crew').innerHTML = list.length ? list.map(({ f, s, kind, text }) => `<div class="cr ${s.agent === 'codex' ? 'codex' : 'claude'}" data-goto="${esc(s.key)}" style="cursor:pointer"><img src="${avatar(s.agent === 'codex' ? 'codex' : 'claude')}" alt=""><div class="m">
-      <div class="r1"><b>${esc(staff(s.agent === 'codex' ? 'codex' : 'claude', f.proj))}</b><span class="st ${kind === 'err' ? 'sweat' : 'think'}">${kind === 'ask' ? '🙋 질문' : kind === 'err' ? '⚠ 에러' : '💬 답변 대기'}</span></div>
+  $('#crew').innerHTML = list.length ? list.map(({ f, s, kind, text }) => `<div class="cr ${kindOf(s)}" data-goto="${esc(s.key)}" style="cursor:pointer"><img src="${avatar(kindOf(s))}" alt=""><div class="m">
+      <div class="r1"><b>${esc(staff(kindOf(s), f.proj))}</b><span class="st ${kind === 'err' ? 'sweat' : 'think'}">${kind === 'ask' ? '🙋 질문' : kind === 'err' ? '⚠ 에러' : '💬 답변 대기'}</span></div>
       <div class="r2">${esc(text || '')}</div><div class="r3">${fno(f.n)} ${esc(f.name)}${s.waiting ? ' · ' + agoTxt(s.waiting) + '부터' : ''} · 누르면 그 층으로</div></div></div>`).join('')
     : `<div class="cr"><img src="${avatar('me')}" alt=""><div class="m"><div class="r1"><b>결재함이 비었어요</b></div><div class="r2">다들 열심히 일하는 중 ☕</div></div></div>`;
 }
@@ -1874,7 +1884,7 @@ function syncRoof() {
   list.forEach(({ f, s }) => {
     if (roofQ.has(s.key)) return;
     const spot = ROOF_SPOTS.findIndex((_, i) => !used.has(i)); if (spot < 0) return; used.add(spot);
-    const kind = s.agent === 'codex' ? 'codex' : 'claude', a = new Actor(kind, ...RF.door); a.scene = 'roof'; a.spot = spot; a.badge = 'coffee';
+    const kind = kindOf(s), a = new Actor(kind, ...RF.door); a.scene = 'roof'; a.spot = spot; a.badge = 'coffee';
     a.setName(staff(kind, f.proj), fno(f.n)); roofQ.set(s.key, a); roofActors.push(a);
     elevTarget = 1; setTimeout(() => { elevTarget = 0; }, 1000);
     const [x, y] = ROOF_SPOTS[spot];
@@ -1884,7 +1894,7 @@ function syncRoof() {
 }
 function renderRoofCrew() {
   const list = roofResting();
-  $('#crew').innerHTML = list.length ? list.map(({ f, s }) => { const k = s.agent === 'codex' ? 'codex' : 'claude'; return `<div class="cr ${k}" data-goto="${esc(s.key)}" style="cursor:pointer"><img src="${avatar(k)}" alt=""><div class="m"><div class="r1"><b>${esc(staff(k, f.proj))}</b><span class="st rest">🌿 쉬는 중</span></div>
+  $('#crew').innerHTML = list.length ? list.map(({ f, s }) => { const k = kindOf(s); return `<div class="cr ${k}" data-goto="${esc(s.key)}" style="cursor:pointer"><img src="${avatar(k)}" alt=""><div class="m"><div class="r1"><b>${esc(staff(k, f.proj))}</b><span class="st rest">🌿 쉬는 중</span></div>
       <div class="r2">${fno(f.n)} ${esc(f.name)}</div><div class="r3">${agoTxt(s.mtime)}부터 쉬는 중 · 누르면 그 층으로</div></div></div>`; }).join('')
     : `<div class="cr"><img src="${avatar('claude')}" alt=""><div class="m"><div class="r1"><b>옥상이 조용해요</b></div><div class="r2">쉬러 올라온 직원이 없어요 🌿</div></div></div>`;
 }
@@ -1994,7 +2004,7 @@ function lobbyTick() { // 층이 일을 시작하면 출근(정문 → 엘리베
   for (const c of changes.slice(0, 3)) lobbyWalk(c.f, c.goIn);
 }
 function lobbyWalk(f, goIn) {
-  const s = f.sessions[0], kind = s.agent === 'codex' ? 'codex' : 'claude';
+  const s = f.sessions[0], kind = kindOf(s);
   const a = new Actor(kind, ...(goIn ? LB.door : LB.elevIn)); a.scene = 'lobby'; a.setName(staff(kind, f.proj), fno(f.n)); lobbyActors.push(a);
   const done = () => { a.remove(); lobbyActors.splice(lobbyActors.indexOf(a), 1); };
   if (goIn && Math.random() < .5) { // 절반은 카페에 들러 커피를 사 감

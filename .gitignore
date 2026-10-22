@@ -6,3 +6,4 @@ captures/
 _to_delete/
 .DS_Store
 node_modules/
+agy-hook.log
